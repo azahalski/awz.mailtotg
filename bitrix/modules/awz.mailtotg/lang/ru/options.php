@@ -11,3 +11,5 @@ $MESS['AWZ_MAILTOTG_OPT_SHOW_DESC_4'] = "Отправлять в Telegram";
 $MESS['AWZ_MAILTOTG_OPT_SHOW_DESC_5'] = "Запрет отправки письма";
 $MESS['AWZ_MAILTOTG_OPT_TGKEY'] = "Токен доступа Телеграм-бота";
 $MESS['AWZ_MAILTOTG_OPT_TGID'] = "ID пользователя, канала или группы";
+$MESS['AWZ_MAILTOTG_OPT_TGID_AUTO'] = "Получить ID чата в Telegram онлайн можно за пару секунд, переслав любое сообщение из нужного чата специальному боту <br>(например, @ShowJsonBot, @userinfobot или @chatIDrobot). <br>Бот мгновенно ответит сообщением, содержащим точный числовой идентификатор.";
+$MESS['AWZ_MAILTOTG_HOOK_IS_SET'] = "Хук уже существует и отличается от текущего сайта, автоматическая установка ид чата невозможна";

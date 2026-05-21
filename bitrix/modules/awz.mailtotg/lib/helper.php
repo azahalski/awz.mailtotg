@@ -125,11 +125,40 @@ class Helper {
         }
 
         // ИДЕНТИФИКАЦИЯ И ОБЕРТКА MARKDOWN-ТАБЛИЦ В <pre>
+        // Исключаем markdown-таблицы из одной колонки (где нет разделителей '|' внутри строки)
         if (preg_match('/\|[ \t]*:-?-?.*?\|/i', $html) || preg_match('/\|[ \t]*-{3,}[ \t]*\|/i', $html)) {
             $html = preg_replace_callback('/((?:^[ \t]*\|.*\|[ \t]*$\n?)+)/m', function($matches) {
                 if (strpos($matches[1], '<pre>') !== false) {
                     return $matches[1];
                 }
+
+                // Проверяем, является ли markdown-таблица одноколоночной
+                $lines = explode("\n", trim($matches[1]));
+                $isSingleColumn = true;
+                foreach ($lines as $line) {
+                    if (trim($line) === '') continue;
+                    // Если в строке больше 2 символов '|' (начало и конец), значит колонок > 1
+                    if (substr_count($line, '|') > 2) {
+                        $isSingleColumn = false;
+                        break;
+                    }
+                }
+
+                if ($isSingleColumn) {
+                    // Превращаем в обычный текст без знаков таблицы
+                    $cleanLines = [];
+                    foreach ($lines as $line) {
+                        if (preg_match('/^[ \t]*\|[ \t]*:-?--*.*?\|[ \t]*$/', $line) || preg_match('/^[ \t]*\|[ \t]*-{3,}[ \t]*\|[ \t]*$/', $line)) {
+                            continue; // Пропускаем разделитель
+                        }
+                        $cleanLine = trim($line, " \t|");
+                        if ($cleanLine !== '') {
+                            $cleanLines[] = $cleanLine;
+                        }
+                    }
+                    return "\n" . implode("\n", $cleanLines) . "\n";
+                }
+
                 $cleanTable = preg_replace('/^[ \t]*$\n/m', '', trim($matches[1]));
                 return "\n<pre>\n" . $cleanTable . "\n</pre>\n";
             }, $html);
@@ -186,6 +215,17 @@ class Helper {
 
             if (empty($rows)) {
                 return '';
+            }
+
+            // ПРОВЕРКА НА ОДНУ КОЛОНКУ
+            if (count($colWidths) <= 1) {
+                $plainLines = [];
+                foreach ($rows as $cells) {
+                    if (isset($cells[0]) && $cells[0] !== '') {
+                        $plainLines[] = $cells[0];
+                    }
+                }
+                return "\n" . implode("\n", $plainLines) . "\n";
             }
 
             $formattedLines = [];

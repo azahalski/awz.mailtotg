@@ -1,5 +1,13 @@
 <?php
 return [
+    'controllers' => [
+        'value' => [
+            'namespaces' => [
+                '\\Awz\\Mailtotg\\Controller' => 'api'
+            ]
+        ],
+        'readonly' => true
+    ],
     'ui.entity-selector' => [
         'value' => [
             'entities' => [

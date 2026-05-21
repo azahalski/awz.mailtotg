@@ -8,6 +8,7 @@ use Bitrix\Main\Application;
 use Bitrix\Main\UI\Extension;
 use Awz\Mailtotg\Access\AccessController;
 use Awz\Mailtotg\Helper;
+use Bitrix\Main\Security\Random;
 
 Loc::loadMessages(__FILE__);
 global $APPLICATION;
@@ -43,6 +44,48 @@ if ($request->getRequestMethod()==='POST' && AccessController::isEditSettings() 
     Option::set($module_id, "OPTS", serialize($finOptions), "");
     Option::set($module_id, "TGKEY", $request->get('TGKEY'), "");
     Option::set($module_id, "TGID", $request->get('TGID'), "");
+
+    $hookKey = Option::get($module_id, "HOOK_KEY", "", "");
+    $tgChat = Option::get($module_id, "TGID", "", "");
+    $tgKey = Option::get($module_id, "TGKEY", "", "");
+    if (!$hookKey) {
+        $hookKey = Random::getString(32);
+        Option::set($module_id, "HOOK_KEY", $hookKey, "", "");
+    }
+
+    // URL вашего обработчика на сайте Bitrix
+    $myWebhookUrl = 'https://'.Application::getInstance()->getContext()->getRequest()->getHttpHost()
+            .'/bitrix/services/main/ajax.php?action=awz:mailtotg.api.telegram.webhook&key='
+            .$hookKey;
+
+    // Выполняем запрос к API Telegram только если есть токен бота
+    if (!empty($tgKey) && false) {
+        $httpClient = new \Bitrix\Main\Web\HttpClient();
+        $httpClient->disableSslVerification();
+        $telegramApiUrl = 'https://api.telegram.org/bot' . $tgKey ;
+        $response = $httpClient->get($telegramApiUrl. '/getWebhookInfo');
+        $resHook = \Bitrix\Main\Web\Json::decode($response);
+        $urlCurrent = $resHook['result']['url'] ?? '';
+        if($urlCurrent && ($urlCurrent!=$myWebhookUrl)){
+            \CAdminMessage::ShowMessage(array('TYPE'=>'ERR',
+                    'MESSAGE'=>Loc::getMessage('AWZ_MAILTOTG_HOOK_IS_SET')));
+        }elseif($urlCurrent){
+            \CAdminMessage::ShowMessage(array('TYPE'=>'OK',
+                    'MESSAGE'=>'Текущий хук: '.$urlCurrent));
+        }elseif (empty($tgChat)) {
+            $response = $httpClient->post($telegramApiUrl. '/setWebhook', [
+                 'url'=>$myWebhookUrl
+            ]);
+            \CAdminMessage::ShowMessage(array('TYPE'=>'OK',
+                    'MESSAGE'=>'Текущий хук: '.$myWebhookUrl));
+        } else {
+            $response = $httpClient->post($telegramApiUrl. '/deleteWebhook', [
+                    'url'=>''
+            ]);
+            \CAdminMessage::ShowMessage(array('TYPE'=>'OK',
+                    'MESSAGE'=>'Хук удален'));
+        }
+    }
 }
 
 $aTabs = array();
@@ -74,6 +117,8 @@ $tabControl->Begin();
         <tr>
             <td style="width:200px;"><?=Loc::getMessage('AWZ_MAILTOTG_OPT_TGID')?></td>
             <td>
+                <?$HOOK_KEY = Option::get($module_id, "HOOK_KEY", "",""); ?>
+                <?=Loc::getMessage('AWZ_MAILTOTG_OPT_TGID_AUTO')?><br><br>
                 <?$val = Option::get($module_id, "TGID", "",""); ?>
                 <input type="text" name="TGID" value="<?=htmlspecialcharsEx($val)?>"></td>
             </td>
