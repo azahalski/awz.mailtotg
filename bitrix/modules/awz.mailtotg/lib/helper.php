@@ -55,16 +55,12 @@ class Helper {
             $httpClient = new HttpClient();
             $httpClient->disableSslVerification();
 
+            $processedMessage = self::htmlToText($mess);
             $postParams = array(
-                'chat_id'=>$tokenAr['chat_id'],
-                'text'=>$mess
+                'chat_id'    => $tokenAr['chat_id'],
+                'text'       => $processedMessage,
+                'parse_mode' => 'HTML' // Всегда включаем HTML, так как htmlToText гарантированно возвращает валидный HTML
             );
-
-            // Добавляем parse_mode только если сообщение содержит HTML-разметку
-            if (self::isHtml($mess)) {
-                $postParams['parse_mode'] = 'HTML';
-                $postParams['text'] = self::htmlToText($postParams['text']);
-            }
 
             $r = $httpClient->post($url, $postParams);
 
@@ -108,90 +104,188 @@ class Helper {
     }
 
     /**
-     * Конвертирует HTML в текст для Telegram (с сохранением поддерживаемой разметки)
+     * Конвертирует HTML/Markdown в текст для Telegram и жестко ограничивает длину до лимита API.
      * Поддерживаемые теги Telegram: <b>, <strong>, <i>, <em>, <u>, <s>, <strike>, <code>, <pre>, <a>
      *
      * @param string $html
+     * @param int $maxLength Максимальная длина сообщения (безопасный лимит для Telegram — 3800)
      * @return string
      */
-    public static function htmlToText(string $html): string
+    public static function htmlToText(string $html, int $maxLength = 3800): string
     {
-        // Удаление DOCTYPE и XML-деклараций
+        // ОЧИСТКА ВНУТРЕННИХ ПЕРЕНОСОВ СТРОК В ЯЧЕЙКАХ
+        if (strpos($html, '|') !== false) {
+            $html = preg_replace_callback('/(\|[^\n|]*)\n+(?![ \t]*\|)([^\n|]*)/u', function($matches) {
+                return $matches[1] . ' ' . $matches[2];
+            }, $html);
+
+            $html = preg_replace_callback('/(\|[^\n|]*)\n+(?![ \t]*\|)([^\n|]*)/u', function($matches) {
+                return $matches[1] . ' ' . $matches[2];
+            }, $html);
+        }
+
+        // ИДЕНТИФИКАЦИЯ И ОБЕРТКА MARKDOWN-ТАБЛИЦ В <pre>
+        if (preg_match('/\|[ \t]*:-?-?.*?\|/i', $html) || preg_match('/\|[ \t]*-{3,}[ \t]*\|/i', $html)) {
+            $html = preg_replace_callback('/((?:^[ \t]*\|.*\|[ \t]*$\n?)+)/m', function($matches) {
+                if (strpos($matches[1], '<pre>') !== false) {
+                    return $matches[1];
+                }
+                $cleanTable = preg_replace('/^[ \t]*$\n/m', '', trim($matches[1]));
+                return "\n<pre>\n" . $cleanTable . "\n</pre>\n";
+            }, $html);
+        }
+
+        // 1. Удаление DOCTYPE, XML и служебных тегов
         $html = preg_replace('/<!DOCTYPE[^>]*>/i', '', $html);
         $html = preg_replace('/<\?xml[^>]*\?>/i', '', $html);
-
-        // Удаление тегов <html> и </html>
-        $html = preg_replace('/<\/?html[^>]*>/i', '', $html);
-
-        // Удаление тегов <body> и </body>
-        $html = preg_replace('/<\/?body[^>]*>/i', '', $html);
-
-        // Удаление тегов <style> вместе с содержимым
         $html = preg_replace('/<style[^>]*>.*?<\/style>/is', '', $html);
-
-        // Удаление тегов <script> вместе с содержимым
         $html = preg_replace('/<script[^>]*>.*?<\/script>/is', '', $html);
+        $html = preg_replace('/<\/?(html|body)[^>]*>/i', '', $html);
 
-        // Замена <br> и <br/> на переводы строк
+        // 2. Базовая разметка блоков
         $html = preg_replace('/<br\s*\/?>/i', "\n", $html);
-
-        // Замена <hr> на разделитель
         $html = preg_replace('/<hr[^>]*>/i', "\n" . str_repeat('-', 20) . "\n", $html);
-
-        // Замена </p> на двойной перевод строки
         $html = preg_replace('/<\/p>/i', "\n\n", $html);
-
-        // Замена </div> на перевод строки
         $html = preg_replace('/<\/div>/i', "\n", $html);
-
-        // Замена </h1>-</h6> на двойной перевод строки с подчёркиванием
         $html = preg_replace('/<\/h([1-6])>/i', "\n\n", $html);
-
-        // Добавление подчёркивания перед <h1>-<h6> (для заголовков)
         $html = preg_replace('/<h([1-6])[^>]*>/i', '', $html);
 
-        // Обработка списков
-        $html = preg_replace('/<ul[^>]*>/i', '', $html);
-        $html = preg_replace('/<\/ul>/i', '', $html);
-        $html = preg_replace('/<ol[^>]*>/i', '', $html);
-        $html = preg_replace('/<\/ol>/i', '', $html);
+        // 3. Обработка списков
+        $html = preg_replace('/<\/?(ul|ol)[^>]*>/i', '', $html);
         $html = preg_replace('/<li[^>]*>/i', "\n• ", $html);
         $html = preg_replace('/<\/li>/i', '', $html);
 
-        // Замена <table> и </table>
-        $html = preg_replace('/<table[^>]*>/i', '', $html);
-        $html = preg_replace('/<\/table>/i', '', $html);
+        // 4. ОБРАБОТКА HTML-ТАБЛИЦ (теги <table>)
+        $html = preg_replace_callback('/<table[^>]*>(.*?)<\/table>/is', function($matches) {
+            $tableContent = $matches[1];
 
-        // <tr> — новая строка
-        $html = preg_replace('/<tr[^>]*>/i', "\n", $html);
-        $html = preg_replace('/<\/tr>/i', '', $html);
+            preg_match_all('/<tr[^>]*>(.*?)<\/tr>/is', $tableContent, $trMatches);
+            $rows = [];
+            $colWidths = [];
 
-        // <td> — добавляем пробел для разделения ячеек
-        $html = preg_replace('/<td[^>]*>/i', ' ', $html);
-        $html = preg_replace('/<\/td>/i', ' | ', $html);
+            foreach ($trMatches[1] as $trContent) {
+                $trContent = str_replace(["\r\n", "\r", "\n"], ' ', $trContent);
+                preg_match_all('/<t[dh][^>]*>(.*?)<\/t[dh]>/is', $trContent, $tdMatches);
 
-        // <th> — заголовок ячейки
-        $html = preg_replace('/<th[^>]*>/i', ' <b>', $html);
-        $html = preg_replace('/<\/th>/i', '</b> | ', $html);
+                $rowCells = [];
+                foreach ($tdMatches[1] as $cellIdx => $cellHtml) {
+                    $cellText = trim(strip_tags($cellHtml));
+                    $cellText = html_entity_decode($cellText, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                    $cellText = preg_replace('/\s+/', ' ', $cellText);
+                    $rowCells[$cellIdx] = $cellText;
 
-        // Удаление всех оставшихся HTML-тегов, кроме поддерживаемых Telegram
-        // Поддерживаемые: b, strong, i, em, u, s, strike, code, pre, a
+                    $cellLen = mb_strlen($cellText, 'UTF-8');
+                    if (!isset($colWidths[$cellIdx]) || $cellLen > $colWidths[$cellIdx]) {
+                        $colWidths[$cellIdx] = $cellLen;
+                    }
+                }
+                if (!empty($rowCells)) {
+                    $rows[] = $rowCells;
+                }
+            }
+
+            if (empty($rows)) {
+                return '';
+            }
+
+            $formattedLines = [];
+            foreach ($rows as $rowIndex => $cells) {
+                $lineCells = [];
+                foreach ($cells as $cellIdx => $cellText) {
+                    $width = $colWidths[$cellIdx];
+                    $lineCells[] = $cellText . str_repeat(' ', $width - mb_strlen($cellText, 'UTF-8'));
+                }
+                $formattedLines[] = '| ' . implode(' | ', $lineCells) . ' |';
+
+                if ($rowIndex === 0) {
+                    $sepCells = [];
+                    foreach ($colWidths as $width) {
+                        $sepCells[] = str_repeat('-', $width);
+                    }
+                    $formattedLines[] = '|-' . implode('-|-', $sepCells) . '-|';
+                }
+            }
+
+            return "\n<pre>\n" . implode("\n", $formattedLines) . "\n</pre>\n";
+        }, $html);
+
+        // 5. Фильтрация неподдерживаемых тегов
         $text = preg_replace('/<(?!\/?(?:b|strong|i|em|u|s|strike|code|pre|a\b)[^>]*>)[^>]+>/i', '', $html);
-
-        // Декодирование HTML-сущностей
         $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
-        // Нормализация пробельных симвылов
+        // 6. Построчная нормализация пробелов
         $lines = explode("\n", $text);
-        $lines = array_map(function ($line) {
-            return trim($line);
-        }, $lines);
-        $text = implode("\n", $lines);
+        $insidePre = false;
+        $processedLines = [];
 
-        // Схлопывание более 2 переводов строк в 2
-        $text = preg_replace('/(\n[ \t|]*){2,}/', "\n\n", $text);
+        foreach ($lines as $line) {
+            if (strpos($line, '<pre>') !== false) {
+                $insidePre = true;
+            }
 
-        return trim($text);
+            if ($insidePre) {
+                if (trim($line) !== '' || strpos($line, '<pre>') !== false || strpos($line, '</pre>') !== false) {
+                    $processedLines[] = $line;
+                }
+            } else {
+                $processedLines[] = trim($line);
+            }
+
+            if (strpos($line, '</pre>') !== false) {
+                $insidePre = false;
+            }
+        }
+
+        $text = implode("\n", $processedLines);
+        $text = preg_replace('/(?<!<\/pre>)\n{3,}/', "\n\n", $text);
+        $text = preg_replace('/[ \t]*\n+<pre>/i', "\n<pre>", $text);
+        $text = preg_replace('/<\/pre>\n+[ \t]*/i', "</pre>\n", $text);
+        $text = trim($text);
+
+        // 7. УМНОЕ ПОСТРОЧНОЕ ОБРЕЗАНИЕ (Защита структуры)
+        if (mb_strlen($text, 'UTF-8') > $maxLength) {
+            $finalLines = explode("\n", $text);
+            $currentLength = 0;
+            $allowedLines = [];
+            $insidePreTag = false;
+
+            foreach ($finalLines as $line) {
+                if (strpos($line, '<pre>') !== false) {
+                    $insidePreTag = true;
+                }
+
+                $lineLength = mb_strlen($line, 'UTF-8') + 1; // +1 за перевод строки
+                if (($currentLength + $lineLength) > ($maxLength - 60)) {
+                    // Если мы режем текст внутри таблицы, нужно ПРИНУДИТЕЛЬНО закрыть тег таблицы
+                    if ($insidePreTag) {
+                        $allowedLines[] = '</pre>';
+                    }
+                    $allowedLines[] = '...';
+                    break;
+                }
+
+                $allowedLines[] = $line;
+                $currentLength += $lineLength;
+
+                if (strpos($line, '</pre>') !== false) {
+                    $insidePreTag = false;
+                }
+            }
+
+            $text = implode("\n", $allowedLines);
+            $text = preg_replace('/<[^>]*$/u', '', $text); // Чистим обрубки тегов на самом конце
+
+            // Финальная проверка на закрытие всех остальных базовых тегов
+            $supportedTags = ['b', 'strong', 'i', 'em', 'u', 's', 'strike', 'code', 'pre', 'a'];
+            foreach ($supportedTags as $tag) {
+                $opened = mb_substr_count($text, "<{$tag}>", 'UTF-8') + mb_substr_count($text, "<{$tag} ", 'UTF-8');
+                $closed = mb_substr_count($text, "</{$tag}>", 'UTF-8');
+                if ($opened > $closed) {
+                    $text .= "</{$tag}>";
+                }
+            }
+        }
+
+        return $text;
     }
-
 }
