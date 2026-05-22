@@ -29,7 +29,7 @@ if(!AccessController::isViewSettings())
     $APPLICATION->AuthForm(Loc::getMessage("ACCESS_DENIED"));
 require($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/main/include/prolog_admin_after.php");
 
-if ($request->getRequestMethod()==='POST' && AccessController::isEditSettings() && $request->get('Update'))
+if ($request->getRequestMethod()==='POST' && AccessController::isEditSettings() && $request->get('Update') && check_bitrix_sessid())
 {
     $finOptions = [];
     $event = $request->get('EVENT');
@@ -153,10 +153,10 @@ $tabControl->Begin();
         while($dt = $allType->fetch()){
             ?>
                     <tr>
-                        <td><?=$dt['ID']?></td>
-                        <td><?=$dt['LID']?></td>
-                        <td><?=$dt['EVENT_NAME']?></td>
-                        <td><?=$dt['SUBJECT']?></td>
+                        <td><?=htmlspecialcharsEx($dt['ID'])?></td>
+                        <td><?=htmlspecialcharsEx($dt['LID'])?></td>
+                        <td><?=htmlspecialcharsEx($dt['EVENT_NAME'])?></td>
+                        <td><?=htmlspecialcharsEx($dt['SUBJECT'])?></td>
                         <td>
                             <input type="checkbox" value="Y" name="EVENT[<?=$dt['ID']?>][active]" <?if (Helper::isActive((int)$dt['ID'])) echo "checked";?>>
                         </td>
