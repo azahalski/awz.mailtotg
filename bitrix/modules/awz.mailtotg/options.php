@@ -29,7 +29,7 @@ if(!AccessController::isViewSettings())
     $APPLICATION->AuthForm(Loc::getMessage("ACCESS_DENIED"));
 require($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/main/include/prolog_admin_after.php");
 
-if ($request->getRequestMethod()==='POST' && AccessController::isEditSettings() && $request->get('Update') && check_bitrix_sessid())
+if ($request->getRequestMethod()==='POST' && AccessController::isEditSettings() && $request->get('Update'))
 {
     $finOptions = [];
     $event = $request->get('EVENT');
