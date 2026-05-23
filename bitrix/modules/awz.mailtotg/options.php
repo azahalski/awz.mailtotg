@@ -29,7 +29,9 @@ if(!AccessController::isViewSettings())
     $APPLICATION->AuthForm(Loc::getMessage("ACCESS_DENIED"));
 require($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/main/include/prolog_admin_after.php");
 
-if ($request->getRequestMethod()==='POST' && AccessController::isEditSettings() && $request->get('Update'))
+if ($request->getRequestMethod()==='POST'
+        && AccessController::isEditSettings() && $request->get('Update')
+        && check_bitrix_sessid())
 {
     $finOptions = [];
     $event = $request->get('EVENT');
@@ -59,34 +61,6 @@ if ($request->getRequestMethod()==='POST' && AccessController::isEditSettings() 
             .'/bitrix/services/main/ajax.php?action=awz:mailtotg.api.telegram.webhook&key='
             .$hookKey;
 
-    // Выполняем запрос к API Telegram только если есть токен бота
-    if (!empty($tgKey) && false) {
-        $httpClient = new \Bitrix\Main\Web\HttpClient();
-        $httpClient->disableSslVerification();
-        $telegramApiUrl = 'https://api.telegram.org/bot' . $tgKey ;
-        $response = $httpClient->get($telegramApiUrl. '/getWebhookInfo');
-        $resHook = \Bitrix\Main\Web\Json::decode($response);
-        $urlCurrent = $resHook['result']['url'] ?? '';
-        if($urlCurrent && ($urlCurrent!=$myWebhookUrl)){
-            \CAdminMessage::ShowMessage(array('TYPE'=>'ERR',
-                    'MESSAGE'=>Loc::getMessage('AWZ_MAILTOTG_HOOK_IS_SET')));
-        }elseif($urlCurrent){
-            \CAdminMessage::ShowMessage(array('TYPE'=>'OK',
-                    'MESSAGE'=>'Текущий хук: '.$urlCurrent));
-        }elseif (empty($tgChat)) {
-            $response = $httpClient->post($telegramApiUrl. '/setWebhook', [
-                 'url'=>$myWebhookUrl
-            ]);
-            \CAdminMessage::ShowMessage(array('TYPE'=>'OK',
-                    'MESSAGE'=>'Текущий хук: '.$myWebhookUrl));
-        } else {
-            $response = $httpClient->post($telegramApiUrl. '/deleteWebhook', [
-                    'url'=>''
-            ]);
-            \CAdminMessage::ShowMessage(array('TYPE'=>'OK',
-                    'MESSAGE'=>'Хук удален'));
-        }
-    }
 }
 
 $aTabs = array();
@@ -104,6 +78,7 @@ $tabControl->Begin();
 ?>
     <style>.adm-workarea option:checked {background-color: rgb(206, 206, 206);}</style>
     <form method="POST" action="<?=$saveUrl?>" id="FORMACTION">
+        <?=bitrix_sessid_post()?>
         <?
         $tabControl->BeginNextTab();
         Extension::load("ui.alerts");

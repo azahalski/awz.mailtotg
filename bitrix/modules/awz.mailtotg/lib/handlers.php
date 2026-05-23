@@ -16,6 +16,10 @@ class Handlers {
     {
         $moduleId = Helper::MODULE_ID;
 
+        if(!\check_bitrix_sessid()){
+            return;
+        }
+
         $request = Application::getInstance()->getContext()->getRequest();
         if ($request->getRequestMethod() !== 'POST') {
             return;
