@@ -10,6 +10,12 @@ class Handlers {
 
     public static function OnBeforeEventSend(&$arFields, &$eventMessage)
     {
+        // Проверяем, отключен ли модуль
+        $disabled = \Bitrix\Main\Config\Option::get('awz.mailtotg', 'DISABLED', 'N', '');
+        if ($disabled === 'Y') {
+            return null;
+        }
+
         //$eventMessage['EVENT_NAME'] - тип события
         //$eventMessage['ID'] - ид шаблона
         //$eventMessage['LID'] - ид сайта

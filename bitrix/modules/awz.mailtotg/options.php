@@ -44,6 +44,7 @@ if ($request->getRequestMethod()==='POST' && AccessController::isEditSettings() 
     Option::set($module_id, "OPTS", serialize($finOptions), "");
     Option::set($module_id, "TGKEY", $request->get('TGKEY'), "");
     Option::set($module_id, "TGID", $request->get('TGID'), "");
+    Option::set($module_id, "DISABLED", $request->get('DISABLED') === 'Y' ? 'Y' : 'N', "");
 
     $hookKey = Option::get($module_id, "HOOK_KEY", "", "");
     $tgChat = Option::get($module_id, "TGID", "", "");
@@ -108,6 +109,13 @@ $tabControl->Begin();
         Extension::load("ui.alerts");
         ?>
         <tr>
+            <td style="width:200px;"><?=Loc::getMessage('AWZ_MAILTOTG_OPT_DISABLED')?></td>
+            <td>
+                <?$val = Option::get($module_id, "DISABLED", "N",""); ?>
+                <input type="checkbox" value="Y" name="DISABLED" <?if($val === 'Y') echo "checked";?>>
+            </td>
+        </tr>
+        <tr>
             <td style="width:200px;"><?=Loc::getMessage('AWZ_MAILTOTG_OPT_TGKEY')?></td>
             <td>
                 <?$val = Option::get($module_id, "TGKEY", "","");?>
@@ -123,6 +131,7 @@ $tabControl->Begin();
                 <input type="text" name="TGID" value="<?=htmlspecialcharsEx($val)?>"></td>
             </td>
         </tr>
+
         <tr>
             <td colspan="2">
                 <div class="ui-alert ui-alert-primary">
