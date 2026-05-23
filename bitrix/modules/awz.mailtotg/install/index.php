@@ -128,6 +128,18 @@ class awz_mailtotg extends CModule
             'main', 'OnBeforeEventSend',
             $this->MODULE_ID, '\\Awz\\Mailtotg\\Handlers', 'OnBeforeEventSend'
         );
+        $eventManager->registerEventHandlerCompatible(
+            'main', 'OnPageStart',
+            $this->MODULE_ID, '\\Awz\\Mailtotg\\Handlers', 'onPageStart'
+        );
+        $eventManager->registerEventHandlerCompatible(
+            'main', 'OnBeforeProlog',
+            $this->MODULE_ID, '\\Awz\\Mailtotg\\Handlers', 'OnBeforeProlog'
+        );
+        $eventManager->registerEventHandlerCompatible(
+            'main', 'OnAdminTabControlBegin',
+            $this->MODULE_ID, '\\Awz\\Mailtotg\\Handlers', 'OnAdminTabControlBegin'
+        );
         return true;
     }
 
@@ -145,6 +157,18 @@ class awz_mailtotg extends CModule
         $eventManager->unRegisterEventHandler(
             'main', 'OnBeforeEventSend',
             $this->MODULE_ID, '\\Awz\\Mailtotg\\Handlers', 'OnBeforeEventSend'
+        );
+        $eventManager->unRegisterEventHandler(
+            'main', 'OnPageStart',
+            $this->MODULE_ID, '\\Awz\\Mailtotg\\Handlers', 'onPageStart'
+        );
+        $eventManager->unRegisterEventHandler(
+            'main', 'OnBeforeProlog',
+            $this->MODULE_ID, '\\Awz\\Mailtotg\\Handlers', 'OnBeforeProlog'
+        );
+        $eventManager->unRegisterEventHandler(
+            'main', 'OnAdminTabControlBegin',
+            $this->MODULE_ID, '\\Awz\\Mailtotg\\Handlers', 'OnAdminTabControlBegin'
         );
         return true;
     }
