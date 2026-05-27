@@ -53,7 +53,7 @@ class Helper {
             $url = 'https://api.telegram.org/bot'.$tokenAr['token'].'/sendMessage';
 
             $httpClient = new HttpClient();
-            $httpClient->disableSslVerification();
+            //$httpClient->disableSslVerification();
 
             $processedMessage = self::htmlToText($mess);
             $postParams = array(
